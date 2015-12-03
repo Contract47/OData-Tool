@@ -1,3 +1,5 @@
+/*globals getCollectionName _isSingleEntity batchMode _entityName*/
+/*eslint-env browser */
 function create(){
 	send('POST',JSON.stringify(getRequestBody()));
 }
