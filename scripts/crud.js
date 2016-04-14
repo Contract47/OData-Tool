@@ -1,13 +1,17 @@
-/*globals getCollectionName _isSingleEntity batchMode _entityName*/
-/*eslint-env browser */
 function create(){
-	send('POST',JSON.stringify(getRequestBody()));
+  send('POST',JSON.stringify(getRequestBody()));
 }
 
 
 function update(){
+  chrome.storage.sync.get({updateMethod:'PUT'}, function(options) {
+	  send((options.updateMethod),JSON.stringify(getRequestBody()));
+  });
+  
+  console.log("============================================================");
+  console.log("===                   REQUEST BODY                       ===");
+  console.log("============================================================");
   console.log(JSON.stringify(getRequestBody()));
-	send('PUT',JSON.stringify(getRequestBody()));
 }
 
 
@@ -97,9 +101,11 @@ function send(reqType,content,urls){
 				reqContent = reqContent.replace('[ifmatch]',if_match);
 			}else{
 				xmlhttpPOST.open(reqType,_path,true);
+				// Only for non-batch-requests, exception otherwise
+			  xmlhttpPOST.setRequestHeader('If-Match', if_match);
 			}
-			
-			xmlhttpPOST.setRequestHeader ('X-CSRF-Token', csrf_token); 
+		  
+			xmlhttpPOST.setRequestHeader ('X-CSRF-Token', csrf_token);
 			xmlhttpPOST.setRequestHeader("Content-type",contentType);    
 			xmlhttpPOST.send(reqContent);
 		}
@@ -113,25 +119,91 @@ function send(reqType,content,urls){
 		  console.log("============================================================");
 			console.log(xmlhttpPOST.responseText);
 			
+			
 		  if(batchMode.checked){
 		    var errorsFound = checkBatchErrors(xmlhttpPOST.responseText);
 		    if(errorsFound) return;
 		  }
 		  
-			switch(reqType){
-				case 'PUT':
-					if(confirm('Update Successful. Reload?')){
-						location.reload(); 
-					}
-					break;
-				case 'POST':
-					if(confirm('Entity Creation Successful. Reload?')){
-						location.reload(); 
-					}
-					break;						
-				case 'DEL':
-					alert('Deletion Successful');
-					break;
+		  // Validate if a new object was found
+			if(!batchMode.checked && reqType == 'POST'){
+  			var newURL = $(xmlhttpPOST.responseText).find('id').html();
+  			
+  			if(newURL){
+  			  var tryCnt      = 1;
+    		  var xmlhttpCheck=new XMLHttpRequest();
+    		  xmlhttpCheck.onreadystatechange=function(){
+    		    if (xmlhttpCheck.readyState==4 && 200 <= xmlhttpCheck.status && xmlhttpCheck.status < 300){
+        		  console.log("\n\n============================================================");
+        		  console.log("===                 FOUND ITEM - RESPONSE:               ===");
+        		  console.log("============================================================");
+        			console.log(xmlhttpCheck.responseText);
+        			
+        			chrome.storage.sync.get({askForReload:true}, function(options) {
+            	  if(options.askForReload){
+            			switch(reqType){
+            				case 'PUT':
+            				case 'PATCH':
+            				case 'MERGE':
+            					if(confirm('Update Successful. Reload?')){
+            						location.reload(); 
+            					}
+            					break;
+            				case 'POST':
+            					if(confirm('Entity Creation Successful. Reload?')){
+            						location.reload(); 
+            					}
+            					break;						
+            				case 'DEL':
+            					alert('Deletion Successful');
+            					break;
+            			}
+            	  }
+              });
+              
+  		      }else if(xmlhttpCheck.readyState==4 && xmlhttpCheck.status!=200 && xmlhttpCheck.responseText){
+        			var errorMsg = xmlhttpCheck.responseText.split(/message[^>]*>/)[1];
+        			if(errorMsg){ 	errorMsg = errorMsg.split('<')[0]; }
+        			else{			      errorMsg = xmlhttpCheck.responseText; }
+        			
+            	if(confirm( ( (tryCnt > 1)? 'Still not working (#'+tryCnt+') -\n':'' )+
+            	            ((xmlhttpCheck.status==404)? 'The created object could not be found.\n':'')+
+            	            'The following error occurred while fetching the new object:'+
+            	            '\n---------------------------------------------------------\n'+
+            	            errorMsg+
+            	            '\n-------------------------------------------------------\nRetry?')){
+              	xmlhttpCheck.open("GET",newURL+'?§try='+(tryCnt++),true);
+              	xmlhttpCheck.send();
+            	}
+        			//alert(errorMsg);
+  		      }
+    		  };
+    		  
+        	xmlhttpCheck.open("GET",newURL,true);
+        	xmlhttpCheck.send();
+  			}
+			}else{
+  		  chrome.storage.sync.get({askForReload:true}, function(options) {
+      	  if(options.askForReload){
+      			switch(reqType){
+      				case 'PUT':
+      				case 'PATCH':
+      				case 'MERGE':
+      					if(confirm('Update Successful. Reload?')){
+      						location.reload(); 
+      					}
+      					break;
+      				case 'POST':
+      					if(confirm('Entity Creation Successful. Reload?')){
+      						location.reload(); 
+      					}
+      					break;						
+      				case 'DEL':
+      					alert('Deletion Successful');
+      					break;
+      			}
+      	  }
+        });
 			}
 			
 			propsUpdated = false;
@@ -142,11 +214,12 @@ function send(reqType,content,urls){
 		  console.log("============================================================");
 			console.log(xmlhttpPOST.responseText);
 			
-			var errorMsg = xmlhttpPOST.responseText.split(/message[^>]*>/)[1];
-			if(errorMsg){ 	errorMsg = errorMsg.split('<')[0]; }
-			else{			errorMsg = xmlhttpPOST.responseText; }
+			//var errorMsg = xmlhttpPOST.responseText.split(/message[^>]*>/)[1];
+			//if(errorMsg){ 	errorMsg = errorMsg.split('<')[0]; }
+			//else{			errorMsg = xmlhttpPOST.responseText; }
 			
-			alert(errorMsg);
+			var errorMsg = $(xmlhttpPOST.responseText).find('message').html();
+			alert(errorMsg || xmlhttpPOST.responseText);
 		}
 	};
 	
@@ -196,8 +269,10 @@ function createBatch(batchId,changesetId,reqType,url,content){
 				tmp+'\n\n';
 			break;
 		case 'PUT':
+		case 'PATCH':
+		case 'MERGE':
 			batch +=
-				"MERGE "+entityPath+" HTTP/1.1\n"+	// MERGE won't work for e.g. Northwind OData
+			  reqType+' '+entityPath+" HTTP/1.1\n"+	// MERGE won't work for e.g. Northwind OData
 				tmp+                    
 				'Content-Type: application/json\n'+
 				'Content-Id: 1\n'+
@@ -228,18 +303,86 @@ function getRequestBody(){
       
       value     = value.value;
       
+      if(!propTypes[prop]){ return; }
+      
       if(propTypes[prop].indexOf('Edm.Int') === 0){
         value = parseInt(value);
       }
-      
+      if(propTypes[prop].indexOf('Edm.Boolean') === 0){
+        value = Boolean(value);
+      }
      	if(prop && value && value != 'object'){
 		  	reqBody[prop] = value;
 		  }
     });
   });
   
+  $.extend( true, reqBody, getChildren('#mainTab') );
+  
   return reqBody;
 }
+
+// ===================================================================
+// Deep Create Data
+// ===================================================================
+// Returns an object containing all succeeding child properties
+function getChildren(tab){
+   
+   var props = {};
+    
+   $(tab).parents('.superTab:first').find('.navTab:first > tbody:first').children().each(function(){
+      var propName = $(this).find('.propertyLabel:first').html();
+      var content  = $(this).find('.superTab:first');
+
+      if(content.length === 0){ return; }
+      
+      var childPropTab = content.find('table:first');
+      
+      // Collection
+      if(childPropTab.children('tbody').children('tr').children('td').children('div').attr('class') == 'propWrapper'){
+        props[propName] = []; childPropTab.find('.collectionTab:first').children('tbody').children('tr').each(function(){
+            if($(this).find('.useForCreate:first').is(':checked')){
+                props[propName].push(getProps( $(this) ) );
+            }
+        });
+      }
+      // Properties
+      else{ if($(this).find('.useForCreate:first').is(':checked')){ props[propName] = getProps(childPropTab); } }
+  });
+
+  return props;
+}
+
+function getProps(childTab){
+  
+  if(!childTab.find('.useForCreate:first').is(':checked')){
+    return;
+  }
+  
+  // Add properties
+  var props = {};
+  childTab.find('.keyTab, .propTab').each(function(){
+    $(this).find('tr').each(function(){
+
+       var childProp = $(this).find('a').not('.propertyLabel').html() || $(this).find('input').val();
+
+       if(childProp !== undefined && childProp !== '' && $(this).find('.usePropForCreate:first').is(':checked')){
+         props[$(this).find('.propertyLabel').html()] = childProp;
+       }
+    });
+  });
+  
+  var children  = getChildren(childTab);
+  var childKeys = Object.keys(children);
+
+  for(var i=0;i<childKeys.length;i++){
+   props[childKeys[i]] = children[childKeys[i]];
+  }
+
+  return props;
+}
+// =================================================================
+// =================================================================
 
 function checkBatchErrors(responseText){
   var msg;

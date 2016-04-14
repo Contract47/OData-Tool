@@ -17,32 +17,57 @@ chrome.contextMenus.create({
 var _tab;
 var _services;
 var _metadata;
+var _url;
 
 chrome.runtime.onMessage.addListener(
   function(request, sender) {
-    if(request.active === true) chrome.browserAction.setIcon({path:"res/icon.png"});
-    else                        chrome.browserAction.setIcon({path:"res/icon_gray.png"});
+    chrome.storage.sync.get({enabled:true}, function(options) {
+      if(options.enabled === false)     chrome.browserAction.setIcon({path:"res/icon_disabled.png"});
+      else if(request.active === true)  chrome.browserAction.setIcon({path:"res/icon.png"});
+      else                              chrome.browserAction.setIcon({path:"res/icon_gray.png"});
+    });
   }
 );
 
 // On tab change => check if metadata available => change icon
 chrome.tabs.onActivated.addListener(function (activeInfo){
-  chrome.tabs.query({ currentWindow: true, active: true }, function (tabs) {
-    chrome.tabs.sendMessage(  tabs[0].id, {method: "getMetadata"},function(response){ 
-        chrome.browserAction.setIcon({path: (response && response.metadata)? "res/icon.png":"res/icon_gray.png" }); }
-    );
+  
+  chrome.tabs.getSelected(null, function(tab){
+    _url = tab.url;
+  });
+  
+  chrome.storage.sync.get({enabled:true}, function(options) {
+    if(!options.enabled){
+      chrome.browserAction.setIcon({path:"res/icon_disabled.png"});
+    }else{
+      chrome.tabs.query({ currentWindow: true, active: true }, function (tabs) {
+        chrome.tabs.sendMessage(  tabs[0].id, {method: "getMetadata"},function(response){ 
+            chrome.browserAction.setIcon({path: (response && response.metadata)? "res/icon.png":"res/icon_gray.png" }); }
+        );
+      });
+    }
   });
 });
 
-// On popup open => load metadata & services from background
-chrome.tabs.getSelected(null, function(tab){
-  chrome.browserAction.onClicked =  chrome.tabs.sendMessage(  tab.id, {method: "getServices"},function(response){
-      if(response){ _services = response.services; }
+
+  
+chrome.storage.sync.get({enabled:true}, function(options) {
+  if(options.enabled){
+    // On popup open => load metadata & services from background
+    chrome.tabs.getSelected(null, function(tab){
+      _url = tab.url;
+      chrome.browserAction.onClicked =  chrome.tabs.sendMessage(  tab.id, {method: "getServices"},function(response){
+          if(response){ _services = response.services; }
+        });
+        
+      chrome.browserAction.onClicked =  chrome.tabs.sendMessage( tab.id, {method: "getMetadata"}, function(response){
+          if(response){ loadPopup(response.metadata,response.initRoot,response.root); }
+        });
     });
-    
-  chrome.browserAction.onClicked =  chrome.tabs.sendMessage( tab.id, {method: "getMetadata"}, function(response){
-      if(response){ loadPopup(response.metadata,response.initRoot,response.root); }
-    });
+  }else{
+    $("#content").hide();
+    $("#disabledMsg").show();
+  }
 });
 
 function loadPopup(metadata,initRootURL,rootURL){
@@ -365,7 +390,7 @@ function sendBatch(url){
     content         = batchReq.value;
   }
   
-	var csrf_token, xmlhttpGET, xmlhttpPOST;
+	var csrf_token, if_match, xmlhttpGET, xmlhttpPOST;
 	
 	if (window.XMLHttpRequest)
 	{// code for IE7+, Firefox, Chrome, Opera, Safari
@@ -382,9 +407,25 @@ function sendBatch(url){
 	{
 		if (xmlhttpGET.readyState==4 && xmlhttpGET.status==200){
 			csrf_token = xmlhttpGET.getResponseHeader('X-CSRF-Token');
+			if_match   = xmlhttpGET.getResponseHeader('ETag');
 		  
-  		xmlhttpPOST.open('POST',((asBatch /*content*/)? (url+'/$batch') : buildEntityURL(url)),true);
+		  var selectedMethod  = document.getElementById('requestType');
+		  var httpMethod      = selectedMethod.options[selectedMethod.selectedIndex].value;
+		  
+		  var requestURL      = ((asBatch /*content*/)? (url+'/$batch') : buildEntityURL(url));
+		  
+		  // If it's not a batch request and not a POST => use the search field value as ID
+		  // If there's no value set => just use the current object shown on the main tab
+		  if(!asBatch && httpMethod != 'POST'){
+		    var itemID = document.getElementById('valueInput').value;
+		    
+		    if(itemID !== ''){ requestURL += '('+document.getElementById('valueInput').value+')'; }
+		    else{ requestURL = _url.split("?")[0]; }
+		  }
+		  
+  		xmlhttpPOST.open(((asBatch)? 'POST' : httpMethod),requestURL,true);
       xmlhttpPOST.setRequestHeader('X-CSRF-Token', csrf_token); 
+			xmlhttpPOST.setRequestHeader ('If-Match', if_match); 
   		
   		// Add headers from UI
   		
@@ -452,7 +493,9 @@ function sendBatch(url){
 		}
 	};
 	
-	xmlhttpGET.open("GET",url+'/$metadata',true);
+	//xmlhttpGET.open("GET",url+'/$metadata',true);
+	
+	xmlhttpGET.open("GET",_url.split('?')[0],true);
 	xmlhttpGET.setRequestHeader ('X-CSRF-Token', 'Fetch');
 	xmlhttpGET.send();
 }

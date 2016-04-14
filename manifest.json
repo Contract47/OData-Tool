@@ -22,18 +22,14 @@
     "matches": [ "http://*/*", "https://*/*"]
   }],
   
-  "_app": {
-    "background": {
-      "scripts": ["start.js"]
-    }
-  },
-  
   "permissions": [
     "contextMenus",
     "activeTab",
     "https://ajax.googleapis.com/",
     "tabs", 
+    "storage",
     "http://*/*", 
     "https://*/*"
-  ]
+  ],
+  "options_page": "options.html"
 }

@@ -4,48 +4,61 @@
  "browser_action" field in manifest.json contains the "default_popup" key with
  value "popup.html".
  -->
-<html style="height:100%;">
+<html>
   <head>
     <title>Show Popup</title>
     <script src="libs/jquery.min.js"></script>
     <script src="libs/xml2json.min.js"></script>
     <script src="popup/popup.js"></script>
   </head>
-  <body style="height:100%">
-    <h3 align="center" style="width:200px">OData Collection Search</h3>
-    <div id="notfound" style="display:none"><p align="center">No Metadata Document found!</p></div>
-    <div id="searchContent" style="height:20%">
-      <select id="serviceSelect" style="width:100%"></select><br>
-      <select id="typeSelect" style="width:100%"></select><br>
-      <select id="propSelect" style="width:100%"></select><br>
-      <input id="valueInput"  style="width:100%"></input>
-      <input type="checkbox" id="fuzzySearch" checked>Fuzzy</input>
-      <button id="findButton" style="width:100%">find</button>
-    </div></br>
-    <div id="batchContent" style="height:60%;">
-      <h3 align="center" style="width:200px">Custom Request</h3>
-      <p>Select service and entity above (the latter is used for non-batch requests only!)</p>
-      <input type="checkbox" id="sendAsBatchReq" checked="true"></input>
-      <label>Send as batch</label>
-      <table id="headerTab" style="width:100px">
-        <tbody id="headerTabBody">
-          <tr><th>Header</th><th>Value</th>
-          <tr class="header">
-            <td><input class="headerName" style="width:100px" value="Content-Type"></input></td>
-            <!--td><input class="headerValue" style="width:100px" value="multipart/mixed; boundary="></input></td-->
-            <td><select class="headerValue" id="contentTypeSelect" style="width:100px">
-              <option value="multipart/mixed; boundary=">multipart/mixed; boundary=</option>
-              <option value="application/json">application/json</option>
-            </select></td>
-            <td><button class="addHeaderButton">+</button></td>
-            <td><button class="removeHeaderButton">-</button></td>
-          </tr>
-        </tbody>
-      </table>
-      <textarea id="batchReq" style="width:100%;height:90%;"></textarea>
-      <image id="fileImage" width="100%"></image>
-      <input type="file" id="batchImage"/><br />
-      <button id="sendBatchButton" style="width:100%">Send</button>
+  <body>
+    <div id="content" style="height:100%">
+      <h3 align="center" style="width:200px">OData Collection Search</h3>
+      <div id="notfound" style="display:none"><p align="center">No Metadata Document found!</p></div>
+      <div id="searchContent" style="height:20%">
+        <select id="serviceSelect" style="width:100%"></select><br>
+        <select id="typeSelect" style="width:100%"></select><br>
+        <select id="propSelect" style="width:100%"></select><br>
+        <input id="valueInput"  style="width:100%"></input>
+        <input type="checkbox" id="fuzzySearch" checked>Fuzzy</input>
+        <button id="findButton" style="width:100%">find</button>
+      </div></br>
+      <div id="batchContent" style="height:60%;">
+        <h3 align="center" style="width:200px">Custom Request</h3>
+        <p>Select service and entity above (the latter is used for non-batch requests only!)</p>
+        <input type="checkbox" id="sendAsBatchReq" checked="true"></input>
+        <label>Send as batch</label>
+        <select id="requestType" checked="true">
+          <option>POST</option>
+          <option>PUT</option>
+          <option>PATCH</option>
+          <option>MERGE</option>
+          <option>DEL</option>
+        </select>
+        <label>Method</label>
+        <table id="headerTab" style="width:100px">
+          <tbody id="headerTabBody">
+            <tr><th>Header</th><th>Value</th>
+            <tr class="header">
+              <td><input class="headerName" style="width:100px" value="Content-Type"></input></td>
+              <!--td><input class="headerValue" style="width:100px" value="multipart/mixed; boundary="></input></td-->
+              <td><select class="headerValue" id="contentTypeSelect" style="width:100px">
+                <option value="multipart/mixed; boundary=">multipart/mixed; boundary=</option>
+                <option value="application/json">application/json</option>
+              </select></td>
+              <td><button class="addHeaderButton">+</button></td>
+              <td><button class="removeHeaderButton">-</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <textarea id="batchReq" style="width:100%;height:90%;"></textarea>
+        <image id="fileImage" width="100%"></image>
+        <input type="file" id="batchImage"/><br />
+        <button id="sendBatchButton" style="width:100%">Send</button>
+      </div>
+    </div>
+    <div id="disabledMsg"  style="width:100px;height:100px;display:none">
+      <p>Plugin disabled - open options to enable</p>
     </div>
   </body>
 </html>

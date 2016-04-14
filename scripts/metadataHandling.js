@@ -22,6 +22,10 @@ function formatKey(key,entityName){
 				if(!props) continue;
 				
 				// Loop over entity properties
+				if(props.constructor !== Array){
+				  props = [props];
+				}
+				
 				for(var k=0;k<props.length;k++){
 					if(props[k]["_Name"] == key.PropertyRef[i]["_Name"]){
 						ids[key.PropertyRef[i]["_Name"]] = { type: props[k]["_Type"] };

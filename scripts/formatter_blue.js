@@ -1,10 +1,10 @@
-var _borderRadius = '10px';
+var _borderRadius = '20px';
 var _bgColor      = 255;
 var _bgColorStep  = 20;
 
 function formatContent(obj,entityName){
   
-  document.body.style["background-color"] = "darkgrey";
+  document.body.style["background-color"] = "rgb(0,102,255)";
   
 	var formattedContent  = toTab(obj,true, ''+entityName,null,_bgColor);
 	formattedContent.id   = "formattedContent";
@@ -57,7 +57,7 @@ function toTab(content,firstlevel,itemName,parents,color){
 	//superTab.style['border-style'] = "solid";
 	//superTab.style['border-radius'] = _borderRadius;
 	//superTab.style.width = '100%';
-	superTab.style["background-color"] = "rgb("+color+","+color+","+color+")";
+	superTab.style["background-color"] = "rgb("+(color-100)+","+(color-80)+","+(color+100)+")";
 	superTab.className   = 'superTab';
 	superTab.style.width = "100%";
 	superTab.style['border-radius'] = _borderRadius;
@@ -71,7 +71,7 @@ function toTab(content,firstlevel,itemName,parents,color){
 	
 	superWrapper.style['border-style'] = "solid";
 	superWrapper.style['border-radius'] = _borderRadius;
-	superWrapper.style.color = "grey";
+	superWrapper.style.color = "rgb(50,80,160)"; //"rgb(100,100,250)"; //"grey";
 	superWrapper.style.width = '100%';
 	
 	if(!firstlevel){
@@ -270,7 +270,7 @@ function toTab(content,firstlevel,itemName,parents,color){
       	var txtColor = 255-color;
       	if(Math.abs(color-txtColor) <= 50) txtColor -= 1.5*(color-txtColor);
       	
-      	propLabel.style["color"] = "rgb("+txtColor+","+txtColor+","+txtColor+")";
+      	//propLabel.style["color"] = "rgb("+txtColor+","+txtColor+","+txtColor+")";
   	
       	entityCell.appendChild(propLabel);
     	  entityRow  = entityTab.insertRow();
@@ -301,9 +301,9 @@ function toTab(content,firstlevel,itemName,parents,color){
   	// Collapse properties on click
   	if(!isCollection){
   	  propWrapper.style["border-style"] = "solid"; 
-  	  propWrapper.style["border-radius"] = "10px";
+  	  propWrapper.style["border-radius"] = _borderRadius; //"10px";
   	  propWrapper.style.width = "100%";
-  	  propWrapper.style["border-color"] = "grey";
+  	  propWrapper.style["border-color"] = "rgb(50,80,160)"; //"rgb(100,100,250)"; //"grey";
   	  propWrapper.className = "propWrap";
   	  /*
 	    $(table).children().each(function(){
@@ -402,7 +402,7 @@ function addRow(table,property,value,firstlevel,entityUrl,parents,color){
   	var txtColor = 255-color;
   	if(Math.abs(color-txtColor) <= 50) txtColor -= Math.round(1.5*(color-txtColor));
   	
-  	label.style["color"] = "rgb("+txtColor+","+txtColor+","+txtColor+")";
+  	label.style["color"] = "rgb(0,0,100)"; //"rgb("+txtColor+","+txtColor+","+txtColor+")";
   	
   	cell1.appendChild(label);
   	
@@ -413,8 +413,8 @@ function addRow(table,property,value,firstlevel,entityUrl,parents,color){
     //}
   	input.setAttribute("readonly",true);
   	input.style['border-style'] = "none";    
-  	input.style["background-color"] = "rgb("+color+","+color+","+color+")";
-  	input.style["color"] = "rgb("+txtColor+","+txtColor+","+txtColor+")";
+  	input.style["background-color"] = "rgb(240,240,255)"; //"rgb("+color+","+color+","+color+")";
+  	input.style["color"] = "rgb(0,0,100)"; //"rgb("+txtColor+","+txtColor+","+txtColor+")";
   	$(input).click( function(event){
   	  event.stopPropagation();
   	} );
@@ -473,7 +473,7 @@ function addRow(table,property,value,firstlevel,entityUrl,parents,color){
     		  link.href = window.location.href + ((window.location.search)? '&' : '?') + '$expand='+expandPath;
     		}
     		
-    		link.style.color = "rgb("+txtColor+","+txtColor+","+txtColor+")";
+    		link.style.color = "rgb(0,0,100)"; //"rgb("+txtColor+","+txtColor+","+txtColor+")";
     		
     		var linkImg     = document.createElement("img");
     		linkImg.src     = "http://cdn.flaticon.com/png/64/61/61728.png";
@@ -529,7 +529,7 @@ function addRow(table,property,value,firstlevel,entityUrl,parents,color){
   		input.className = "idFieldInput";
   	  input.removeAttribute("readonly");
   	  input.style['border-style'] = "solid";
-  		link.style.color = "rgb("+txtColor+","+txtColor+","+txtColor+")";
+  		link.style.color = "black"; //"rgb("+txtColor+","+txtColor+","+txtColor+")";
   	}
   	
   	return row;

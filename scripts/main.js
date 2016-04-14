@@ -1,30 +1,34 @@
 var _content,_path,_root,_initRoot,_entityName,_batchMode,_contentObj,_editMode,_isSingleEntity,_metadata,_odata_version,_namespaces,_count,_stepSize,_metapath,
 _namespaces = [];
-  
-if(document.getElementById("loadButton")){
-  loadButton.onclick = loadContent;
-}else{
-  
-  _content = document.body.firstChild.innerHTML;
-  _path    = window.location.href.split('?')[0];
-  _root    = _path.split('(')[0];
-  _root 	     = _root.substring(0,_root.lastIndexOf('/'));
-  _initRoot    = _root;
-  
-  _entityName = _path.substring(_path.lastIndexOf('/')+1,_path.length).split('?')[0].split('(')[0];
-  _count    = 0;
-  _stepSize = 5;
-  
-  _top = window.location.search.match(/\$top[^&]*/) || 0;
-  _top     = parseInt((_top)? _top[0].split('=')[1] : 0);
-  
-  if(_top) _stepSize = _top;
-  
-  _skip = window.location.search.match(/\$skip[^&]*/) || 0;
-  _skip     = parseInt((_skip)? _skip[0].split('=')[1] : 0);
-  
-  run();
-}
+
+chrome.storage.sync.get({enabled:true}, function(options) {
+  if(options.enabled){
+    if(document.getElementById("loadButton")){
+      loadButton.onclick = loadContent;
+    }else{
+      
+      _content = document.body.firstChild.innerHTML;
+      _path    = window.location.href.split('?')[0];
+      _root    = _path.split('(')[0];
+      _root 	     = _root.substring(0,_root.lastIndexOf('/'));
+      _initRoot    = _root;
+      
+      _entityName = _path.substring(_path.lastIndexOf('/')+1,_path.length).split('?')[0].split('(')[0];
+      _count    = 0;
+      _stepSize = 5;
+      
+      _top = window.location.search.match(/\$top[^&]*/) || 0;
+      _top     = parseInt((_top)? _top[0].split('=')[1] : 0);
+      
+      if(_top) _stepSize = _top;
+      
+      _skip = window.location.search.match(/\$skip[^&]*/) || 0;
+      _skip     = parseInt((_skip)? _skip[0].split('=')[1] : 0);
+      
+      run();
+    }
+  }
+});
 
 function loadContent(){
   
@@ -197,11 +201,6 @@ function buildUI(){
 	// Remove refs button if no refs available
 	if($('.expandLink').length === 0){ buttons.removeChild(loadRefsButton); }
 	if(window.location.href.indexOf("$expand") === -1){ buttons.removeChild(removeRefsButton); }
-	
-	
-	if(!_dbProps.openProps || _dbProps.openProps === "false"){
-	  $('.propWrap').children().slideUp(0);
-	}
 }
 
 function getMetadata(){
@@ -237,25 +236,32 @@ function addToolbarButtons(){
 	_batchMode.id = 'batchMode';
 	_batchMode.style["vertical-align"] = "top";
 	
-	if(_dbProps.batchMode === "true"){
-	  $(_batchMode).prop('checked', true);
-	  openProps = true;
-	}else{
-	  $(_batchMode).removeAttr('checked');
-	  openProps = false;
-	}
+  chrome.storage.sync.get({batch:false}, function(options) {
+  	if(options.batch){
+  	  $(_batchMode).prop('checked', true);
+  	  //openProps = true;
+  	}else{
+  	  $(_batchMode).removeAttr('checked');
+  	  //openProps = false;
+  	}
+  });
 	
 	_batchMode.onclick = function(){
-	  writeToDB('batchMode',_batchMode.checked,!_dbProps.hasOwnProperty('batchMode'));
+	  chrome.storage.sync.set({batch: _batchMode.checked});
 	};
-	buttons.appendChild(_batchMode);
-
+	
 	var batchModeLabel = document.createElement('label');
 	batchModeLabel.innerHTML = 'Batch Mode';
 	batchModeLabel.style["vertical-align"] = "top";
-	buttons.appendChild(batchModeLabel);
 	
-	var openProps;
+	var batchBlock = document.createElement("span");
+	batchBlock.appendChild(_batchMode);
+	batchBlock.appendChild(batchModeLabel);
+	buttons.appendChild(batchBlock);
+	
+	$(batchBlock).hide();
+	
+	//var openProps;
 	
 	//addButton('showChildrenButton','show refs',buttons,function(){$('.superTab').children().slideDown(1000);});
  	
@@ -267,31 +273,40 @@ function addToolbarButtons(){
 	propsFlag.id      = 'propsFlag';
 	propsFlag.style["vertical-align"] = "top";
 	
-	if(_dbProps.openProps === "true"){
-	  $(propsFlag).prop('checked', true);
-	  openProps = true;
-	}else{
-	  $(propsFlag).removeAttr('checked');
-	  openProps = false;
-	}
+  chrome.storage.sync.get({properties:true}, function(options) {
+  	if(options.properties){
+  	  $(propsFlag).prop('checked', true);
+  	  //openProps = true;
+	    $('.propWrap').children().slideDown(1000);
+  	}else{
+  	  $(propsFlag).removeAttr('checked');
+  	  //openProps = false;
+  	  $('.propWrap').children().slideUp(0);
+  	}
+  });
 	
 	propsFlag.onclick = function(){
-	  writeToDB('openProps',propsFlag.checked,!_dbProps.hasOwnProperty('openProps')); 
+	  chrome.storage.sync.set({properties: propsFlag.checked});
+	  
 	  if(!propsFlag.checked){
 	    $('.propWrap').children().slideUp(1000);
-	    openProps = false;
+	    //openProps = false;
 	  }else{
 	    $('.propWrap').children().slideDown(1000);
-	    openProps = true;
+	    //openProps = true;
 	  }
 	};
-	
-	buttons.appendChild(propsFlag);
 	
 	var propsFlagLabel = document.createElement('label');
 	propsFlagLabel.innerHTML = 'Properties';
 	propsFlagLabel.style["vertical-align"] = "top";
-	buttons.appendChild(propsFlagLabel);
+	
+	var propsBlock = document.createElement("span");
+	propsBlock.appendChild(propsFlag);
+	propsBlock.appendChild(propsFlagLabel);
+	buttons.appendChild(propsBlock);
+	
+	$(propsBlock).hide();
   
 	// =========================================================
   // UTC Time checkbox
@@ -301,32 +316,29 @@ function addToolbarButtons(){
 	_UTCTime.id = 'utcTime';
 	_UTCTime.style["vertical-align"] = "top";
 	
-	if(_dbProps.utcTime === "true"){
-	  $(_UTCTime).prop('checked', true);
-	}else{
-	  $(_UTCTime).removeAttr('checked');
-	}
-	
+  chrome.storage.sync.get({utc:false}, function(options) {
+  	if(options.utc){
+  	  $(_UTCTime).prop('checked', true);
+  	}else{
+  	  $(_UTCTime).removeAttr('checked');
+  	}
+  });
+  
 	_UTCTime.onclick = function(){
-	  writeToDB('utcTime',_UTCTime.checked,!_dbProps.hasOwnProperty('utcTime')); 
-		if(confirm('For timezone change to take effect, the data has to be reloaded. Continue?')){
-			location.reload(); 
-		}
-	  
+	  chrome.storage.sync.set({utc:_UTCTime.checked});
 	};
-	
-	buttons.appendChild(_UTCTime);
-	
-	//var utcTimeLabel = document.createElement('label');
-	//utcTimeLabel.innerHTML = 'UTC Time';
-	//buttons.appendChild(utcTimeLabel);
 	
 	var utcTimeIcon = document.createElement('img');
 	utcTimeIcon.src = "http://cdn.flaticon.com/png/64/59/59252.png";
 	utcTimeIcon.style.height = "100%";
 	utcTimeIcon.title        = 'UTC Time';
-	buttons.appendChild(utcTimeIcon);
 	
+	var utcBlock = document.createElement('span');
+	utcBlock.appendChild(_UTCTime);
+	utcBlock.appendChild(utcTimeIcon);
+	
+	buttons.appendChild(utcBlock);
+	$(utcBlock).hide();
 	
 	// =========================================================
   // Load / Unload references / extensions Button
@@ -679,6 +691,10 @@ function toggleEditable(){
     	editButton.style["border-style"] = "";
 		}
 	}
+	
+	$('.useForCreate').toggle();
+	$('.useForCreateLabel').toggle();
+	$('.usePropForCreate').toggle();
 	
 	document.getElementById('updateButton').disabled = (!_editMode || !_isSingleEntity);
 	
