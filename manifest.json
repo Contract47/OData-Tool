@@ -1,7 +1,7 @@
 {
   "name": "OData Tool",
   "description": "Tool for OData visualization and manipulation",
-  "version": "0.60",
+  "version": "0.63",
   "manifest_version": 2,
    "background": {
       "scripts": ["libs/jquery.min.js","background/event.js","libs/xml2json.min.js",
@@ -13,7 +13,7 @@
     "default_popup": "popup.html"
   },
   "content_scripts": [ {
-    "js": [ "libs/jquery.min.js", "libs/xml2json.min.js", "libs/json_parse.js", "libs/jquery.scrollTo.min.js",
+    "js": [ "libs/jquery.min.js", "libs/xml2json.min.js", "libs/json_parse.js", "libs/jquery.scrollTo.min.js","libs/jszip.min.js",
     
             "scripts/metadataHandling.js", "scripts/util.js", "scripts/crud.js", 
             "scripts/main.js", "scripts/formatter.js",

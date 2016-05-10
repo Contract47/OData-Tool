@@ -6,8 +6,8 @@ chrome.storage.sync.get({enabled:true}, function(options) {
     if(document.getElementById("loadButton")){
       loadButton.onclick = loadContent;
     }else{
-      
       _content = document.body.firstChild.innerHTML;
+      //_content = decodeURIComponent(escape(document.body.firstChild.innerHTML));
       _path    = window.location.href.split('?')[0];
       _root    = _path.split('(')[0];
       _root 	     = _root.substring(0,_root.lastIndexOf('/'));
@@ -42,6 +42,7 @@ function loadContent(){
 		  document.body.insertBefore(node,document.body.firstChild);
 		    
       _content = document.body.firstChild.innerHTML;
+      //_content = decodeURIComponent(escape(document.body.firstChild.innerHTML));
       _path    = serviceURL.value.split('?')[0];
       _root    = _path.split('(')[0];
       _root 	     = _root.substring(0,_root.lastIndexOf('/'));
@@ -75,7 +76,7 @@ function run(){
 }
 
 function init(){
-  
+
   // Send messages to extension
   chrome.runtime.sendMessage(chrome.runtime.id,{active: false});
   
@@ -222,11 +223,12 @@ function addToolbarButtons(){
 	buttons.style.height = "25px";
 	buttons.style.width = "100%";
 	
-	addButton('editButton','',buttons,toggleEditable,null,              'Edit',       "http://cdn.flaticon.com/png/64/61/61456.png");
-	addButton('createButton','',buttons,create,_isSingleEntity,(_isSingleEntity)? 'Navigate to EntitySet for entity creation':'Create',     "http://cdn.flaticon.com/png/64/95/95029.png");
-	addButton('updateButton','',buttons,update,!_isSingleEntity,(!_isSingleEntity)? 'Navigate to Single Entity for entity updates':'Update', "http://cdn.flaticon.com/png/64/69/69645.png");
-	addButton('deleteButton','',buttons,del,null,                       'Delete',     "http://cdn.flaticon.com/png/64/63/63260.png");
-	addButton('sourceButton','',buttons,showSource,null,                'Show source',"http://cdn.flaticon.com/png/64/14/14460.png");
+	addButton('editButton',		'', buttons, toggleEditable,	null,              	'Edit', 									"http://cdn.flaticon.com/png/64/61/61456.png");
+	addButton('createButton',	'', buttons, create,			_isSingleEntity,	(_isSingleEntity)? 'Navigate to EntitySet for entity creation':'Create',     "http://cdn.flaticon.com/png/64/95/95029.png");
+	addButton('updateButton',	'', buttons, update,			!_isSingleEntity,	(!_isSingleEntity)? 'Navigate to Single Entity for entity updates':'Update', "http://cdn.flaticon.com/png/64/69/69645.png");
+	addButton('deleteButton',	'', buttons, del,				null,               'Delete',     								"http://cdn.flaticon.com/png/64/63/63260.png");
+	addButton('sourceButton',	'', buttons, showSource,		null,               'Show source',								"http://cdn.flaticon.com/png/64/14/14460.png");
+	addButton('zipButton',		'', buttons, generateZip,		null, 				'Generate Zip file from full service data',	"http://image005.flaticon.com/159/png/128/136/136462.png");
 	
 	// =========================================================
   // Batch mode checkbox
@@ -343,8 +345,8 @@ function addToolbarButtons(){
 	// =========================================================
   // Load / Unload references / extensions Button
 	// =========================================================
-	addButton('loadRefsButton','',buttons,expandAll,null,     'Load references',  "http://cdn.flaticon.com/png/64/63/63357.png");
-	addButton('removeRefsButton','',buttons,collapseAll,null, 'Remove references',"http://cdn.flaticon.com/png/64/18/18155.png");
+	addButton('loadRefsButton',		'',buttons,expandAll,	null, 'Load references',  	"http://cdn.flaticon.com/png/64/63/63357.png");
+	addButton('removeRefsButton',	'',buttons,collapseAll,	null, 'Remove references',	"http://cdn.flaticon.com/png/64/18/18155.png");
 	
 	/*if(!_isSingleEntity){
   	var searchInput = document.createElement('input');
@@ -641,6 +643,71 @@ function expandAll(){
     
     window.location = href;
   }
+}
+
+// Generate zip file containing JSON files with all of the service's entities
+function generateZip(){
+ 	var zip			= new JSZip();	
+	var schema		= _metadata.Edmx.DataServices.Schema;
+	var entitySets	= schema.EntityContainer || schema[1].EntityContainer;
+    entitySets		= entitySets.EntitySet;
+    var failedSets	= [];
+	
+	// Add metadata document to zip file
+	$.ajax({
+		  url: _root+'/$metadata',	type: "GET",
+		  dataType: "text",			async: false,
+		  success: function(data) {
+			zip.file("metadata.xml", data);
+		  }
+	});
+	
+	// Add entityset data to zip file
+	for(var i=0; i<entitySets.length; i++){
+		var entitySetName = entitySets[i]._Name;
+
+		$.ajax({
+              url: _root+'/'+entitySetName+'?$format=json',
+              type: "GET",
+              async: false,
+              success: function(data) {
+              	try{
+              		data = data.d.results;
+              		for(var j=0; j<data.length; j++){
+              			delete data[j].__metadata;
+						
+						// Remove nav props / deferred references
+						var objKeys = Object.keys(data[j]);
+              			for(var k=0; k<objKeys.length; k++){
+              				var prop = data[j][objKeys[k]];
+              				if(prop && typeof prop === 'object' && prop.__deferred){
+              					delete data[j][objKeys[k]];
+              				}
+              			}
+              		}
+              	}catch(e){console.log(e);}
+              	
+				// Add entityset content as json file to zip
+              	zip.file(entitySetName+".json", JSON.stringify(data,null,"\t"));
+              },
+              error: function(data){
+				failedSets.push(entitySetName);
+              }
+        });		
+	}
+	
+	// Generate zip file
+    zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:9}}).
+    then(function (blob) {
+		window.location	=  URL.createObjectURL(blob);
+    }, function (err) {
+      console.log(err);
+    });
+	
+	// Inform about failed requests / data sets
+    if(failedSets.length > 0){
+    	alert("Failed sets:\n"+JSON.stringify(failedSets,null,"\t"));
+    }
 }
 
 function collapseAll(){

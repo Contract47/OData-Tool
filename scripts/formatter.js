@@ -431,6 +431,7 @@ function addRow(table,property,value,firstlevel,entityUrl,parents,color){
         value       = date.getFullYear()+'-'+("0"+(date.getMonth()+1)).slice(-2)+'-'+("0"+date.getDate()).slice(-2)+'T'+
                       ("0"+date.getHours()).slice(-2)+':'+("0"+date.getMinutes()).slice(-2)+':'+("0"+date.getSeconds()).slice(-2);
   		}       
+		
   		input.value     = value;
   		cell2.appendChild(input);
   		

@@ -1,3 +1,4 @@
+var _ifmatch;
 
 // Add context menu for Fiori elements, send data to main.js
 /*
@@ -49,7 +50,9 @@ chrome.tabs.onActivated.addListener(function (activeInfo){
   });
 });
 
-
+chrome.storage.sync.get({ifmatch:false}, function(options) {
+	_ifmatch = options.ifmatch;
+});
   
 chrome.storage.sync.get({enabled:true}, function(options) {
   if(options.enabled){
@@ -61,7 +64,9 @@ chrome.storage.sync.get({enabled:true}, function(options) {
         });
         
       chrome.browserAction.onClicked =  chrome.tabs.sendMessage( tab.id, {method: "getMetadata"}, function(response){
-          if(response){ loadPopup(response.metadata,response.initRoot,response.root); }
+          if(response){
+          	loadPopup(response.metadata,response.initRoot,response.root);
+          }
         });
     });
   }else{
@@ -90,7 +95,11 @@ function loadPopup(metadata,initRootURL,rootURL){
   	odata_version  = metadata.Edmx.DataServices["_m:MaxDataServiceVersion"] || // 3.0
                      metadata.Edmx.DataServices["_m:DataServiceVersion"] ||   // 2.0
   	                 metadata.Edmx["_Version"];         
-	  
+	
+	// Only a single entity type has been found => wrap with an array to continue as usual
+    if(!Array.isArray(entityTypes)){	entityTypes = [entityTypes]; }
+    if(!Array.isArray(entitySets)){		entitySets	= [entitySets]; }
+      
 	  var find                = partial(findItems,entitySets,root,odata_version);
     findButton.onclick      = find;
 	  var send                = partial(sendBatch,root);
@@ -167,6 +176,34 @@ function loadPopup(metadata,initRootURL,rootURL){
   $("#sendAsBatchReq").click( function(){
     if($("#sendAsBatchReq").is(":checked")){
      $("#contentTypeSelect option[value='multipart/mixed; boundary=']").attr('selected',true);
+
+     var currentBatchContent = $('#batchReq').val();
+     try{
+     	$('#batchReq').val(
+			'--batch_6f4f-7bb3-3789\n'+
+			'Content-Type: multipart/mixed; boundary=changeset_74e6-2e1b-51c3\n\n'+
+
+			//'--changeset_74e6-2e1b-51c3\n'+
+			//'Content-Type: application/http\n'+
+			//'Content-Transfer-Encoding: binary\n\n'+
+
+			'POST test HTTP/1.1\n'+
+			'Accept: application/json\n'+
+			'Content-Type: application/json\n'+
+			'Accept-Language: en-US\n'+
+			'DataServiceVersion: 2.0\n'+
+			'MaxDataServiceVersion: 2.0\n'+
+			'Content-Length: '+currentBatchContent.length+'\n'+
+			'x-csrf-token: uOGlmnfalN8MPy78IGuPsg==\n\n'+
+
+			currentBatchContent+'\n\n'+
+
+			//'--changeset_74e6-2e1b-51c3--\n'+
+			'--batch_6f4f-7bb3-3789--'
+		);
+
+     }catch(e){alert('nope, no json')}
+
     }else{
      $("#contentTypeSelect option[value='application/json']").attr('selected',true);
     }
@@ -229,6 +266,8 @@ function loadDoc(filename){
 }
 
 function setProperties(entityTypes){
+  if(!typeSelect.options || typeSelect.options.length === 0){ alert('No types found!'); return; }
+  
   var type = typeSelect.options[typeSelect.selectedIndex].value;
   var propNames     = [];
   var keyPropNames  = [];
@@ -377,19 +416,39 @@ function sendBatch(url){
       formData.append('userFile',batchImage.files[0],batchImage.files[0].name);
     }else{
       try{
-        content         = batchReq.value;
-      	contentType 	= content.split("Content-Type:")[1].split("\n")[0].trim();
-      	contentType   = contentType.replace(/boundary=.*/,'boundary='+content.split("\n")[0].replace(/--/g,''));
+      	content         = batchReq.value;
+      	batchBoundary	= 'boundary='+content.split("\n")[0].replace(/--/g,'');
+        contentType 	= content.split("Content-Type:")[1].split("\n")[0].trim();
+      	contentType   	= contentType.replace(/boundary=.*/,batchBoundary);
+
+      	var boundaryOption = $("#contentTypeSelect option[value='multipart/mixed; boundary=']");
+      	boundaryOption.val('multipart/mixed; '+batchBoundary).html('multipart/mixed; '+batchBoundary);
       }catch(e){
         alert('Invalid Batch-Content!');
         console.log(e);
         return;
       }
     }
+    
+    send(url, content, formData, contentType, asBatch);
+
   }else{
-    content         = batchReq.value;
+    content     = batchReq.value;
+	contentObj	= JSON.parse(content);
+	
+	// Check if an array has been handed => post single entities
+	if(contentObj.constructor === Array){
+		for(var i=0; i<contentObj.length; i++){
+			send(url, JSON.stringify(contentObj[i]), formData, contentType, asBatch, i);  
+		}
+	}else{
+		send(url, content, formData, contentType, asBatch);  
+	}
   }
-  
+}
+
+function send(url, content, formData, contentType, asBatch, listIndex){
+
 	var csrf_token, if_match, xmlhttpGET, xmlhttpPOST;
 	
 	if (window.XMLHttpRequest)
@@ -407,57 +466,53 @@ function sendBatch(url){
 	{
 		if (xmlhttpGET.readyState==4 && xmlhttpGET.status==200){
 			csrf_token = xmlhttpGET.getResponseHeader('X-CSRF-Token');
-			if_match   = xmlhttpGET.getResponseHeader('ETag');
+			if(_ifmatch) if_match   = xmlhttpGET.getResponseHeader('ETag');
 		  
-		  var selectedMethod  = document.getElementById('requestType');
-		  var httpMethod      = selectedMethod.options[selectedMethod.selectedIndex].value;
+			var selectedMethod  = document.getElementById('requestType');
+			var httpMethod      = selectedMethod.options[selectedMethod.selectedIndex].value;
+
+			var requestURL      = ((asBatch /*content*/)? (url+'/$batch') : buildEntityURL(url));
+
+			// If it's not a batch request and not a POST => use the search field value as ID
+			// If there's no value set => just use the current object shown on the main tab
+			if(!asBatch && httpMethod != 'POST'){
+				var itemID = document.getElementById('valueInput').value;
+
+				if(itemID !== ''){ requestURL += '('+document.getElementById('valueInput').value+')'; }
+				else{ requestURL = _url.split("?")[0]; }
+			}
 		  
-		  var requestURL      = ((asBatch /*content*/)? (url+'/$batch') : buildEntityURL(url));
-		  
-		  // If it's not a batch request and not a POST => use the search field value as ID
-		  // If there's no value set => just use the current object shown on the main tab
-		  if(!asBatch && httpMethod != 'POST'){
-		    var itemID = document.getElementById('valueInput').value;
-		    
-		    if(itemID !== ''){ requestURL += '('+document.getElementById('valueInput').value+')'; }
-		    else{ requestURL = _url.split("?")[0]; }
-		  }
-		  
-  		xmlhttpPOST.open(((asBatch)? 'POST' : httpMethod),requestURL,true);
-      xmlhttpPOST.setRequestHeader('X-CSRF-Token', csrf_token); 
-			xmlhttpPOST.setRequestHeader ('If-Match', if_match); 
-  		
-  		// Add headers from UI
-  		
-  		var headers = $("#headerTabBody").children();
-  		
-  		headers.each(function(index){
-  		  var headerName  = $(headers[index]).find(".headerName")[0];
-  		  var headerValue = $(headers[index]).find(".headerValue")[0];
-  		  console.log("Header "+index+" - "+headerName+": "+headerValue);
-  		  if(headerName && headerValue){
-  		    xmlhttpPOST.setRequestHeader(headerName.value,headerValue.value); 
-  		  }
-  		});
-  		/*for(var i=1;i<headerTab.rows.length;i++){
-  		  if(headerTab.rows[i].cells[0].firstChild.value) xmlhttpPOST.setRequestHeader(headerTab.rows[i].cells[0].firstChild.value,headerTab.rows[i].cells[1].firstChild.value); 
-  		}*/
-  		
-		  if(content){
-    		
-  			content = content.replace(/x-csrf-token:.*/g,"x-csrf-token: "+csrf_token);
-  			
-  			console.log(contentType);
-  			console.log(content);
-  			
-			  //xmlhttpPOST.setRequestHeader("Content-Type",contentType); 
-			  xmlhttpPOST.send(content); 
+			xmlhttpPOST.open(((asBatch)? 'POST' : httpMethod),requestURL,true);
+			xmlhttpPOST.setRequestHeader('X-CSRF-Token', csrf_token); 
 			
+			if(_ifmatch && if_match) xmlhttpPOST.setRequestHeader ('If-Match', if_match); 
+  		
+			// Add headers from UI
+
+			var headers = $("#headerTabBody").children();
+
+			headers.each(function(index){
+			  var headerName  = $(headers[index]).find(".headerName")[0];
+			  var headerValue = $(headers[index]).find(".headerValue")[0];
+			  //console.log("Header "+index+" - "+headerName+": "+headerValue);
+			  if(headerName && headerValue){
+				xmlhttpPOST.setRequestHeader(headerName.value,headerValue.value); 
+			  }
+			});
+			/*for(var i=1;i<headerTab.rows.length;i++){
+			  if(headerTab.rows[i].cells[0].firstChild.value) xmlhttpPOST.setRequestHeader(headerTab.rows[i].cells[0].firstChild.value,headerTab.rows[i].cells[1].firstChild.value); 
+			}*/
+  		
+			if(content){
+				content = content.replace(/x-csrf-token:.*/g,"x-csrf-token: "+csrf_token);
+				
+				//xmlhttpPOST.setRequestHeader("Content-Type",contentType);
+				xmlhttpPOST.send(content); 
+
 			}else if(formData){
-			  xmlhttpPOST.setRequestHeader("Content-Type", "image/jpeg");
-			  //xmlhttpPOST.setRequestHeader("X-File-Size", batchImage.files[0].size);
-		    xmlhttpPOST.send(formData);
-			}else{
+				//xmlhttpPOST.setRequestHeader("Content-Type", "image/jpeg");
+				//xmlhttpPOST.setRequestHeader("X-File-Size", batchImage.files[0].size);
+				xmlhttpPOST.send(formData);
 			}
 		}
 	};
@@ -489,7 +544,11 @@ function sendBatch(url){
 			if(errorMsg){ 	errorMsg = errorMsg.split('<')[0]; }
 			else{			errorMsg = xmlhttpPOST.responseText; }
 			
-			alert(errorMsg);
+			if(listIndex){
+				console.log('%c#'+listIndex+': '+errorMsg, 'background: #000; color: #FF0000');
+			}else{
+				alert(errorMsg);
+			}
 		}
 	};
 	
@@ -552,9 +611,16 @@ function checkBatchErrors(responseText){
   
 	if(responseText.indexOf('{"error"') != -1 || responseText.indexOf('400 Bad Request') != -1){
 		msg           = responseText.split('"value":')[1];
-		if(msg)  msg  = msg.split('}')[0];
-		else	msg     = responseText.split('innererror><m:message>')[1].split('<')[0];
-		
+		if(msg){  msg  = msg.split('}')[0]; }
+		else{
+			msg = '';	
+			var messages = responseText.match(/<message[^>]*>[^<]*/g);
+			
+			for(var i=0; i<messages.length; i++){
+				msg   += messages[i].split('>')[1]+'\n';
+			}		
+		}
+
 		alert(msg);
 		
 		return true;

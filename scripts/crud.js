@@ -1,3 +1,9 @@
+var _ifmatch;
+
+chrome.storage.sync.get({ifmatch:false}, function(options) {
+	_ifmatch = options.ifmatch;
+});
+
 function create(){
   send('POST',JSON.stringify(getRequestBody()));
 }
@@ -98,15 +104,16 @@ function send(reqType,content,urls){
 			if(batchMode.checked){
 				xmlhttpPOST.open('POST',_root+'/$batch',true);
 				reqContent = reqContent.replace('[csrf]',csrf_token);
-				reqContent = reqContent.replace('[ifmatch]',if_match);
+				if(_ifmatch && if_match){ reqContent = reqContent.replace('[ifmatch]',if_match); }
+				else					{ reqContent = reqContent.replace('If-Match: [ifmatch]\n',''); }
 			}else{
 				xmlhttpPOST.open(reqType,_path,true);
 				// Only for non-batch-requests, exception otherwise
-			  xmlhttpPOST.setRequestHeader('If-Match', if_match);
+			  	if(_ifmatch && if_match) xmlhttpPOST.setRequestHeader('If-Match', if_match);
 			}
-		  
+		  	
 			xmlhttpPOST.setRequestHeader ('X-CSRF-Token', csrf_token);
-			xmlhttpPOST.setRequestHeader("Content-type",contentType);    
+			xmlhttpPOST.setRequestHeader("Content-type",contentType); 
 			xmlhttpPOST.send(reqContent);
 		}
 	};
@@ -252,7 +259,7 @@ function createBatch(batchId,changesetId,reqType,url,content){
 		'DataServiceVersion: 1.0\n'+
 		'MaxDataServiceVersion: '+_odata_version+'\n'+
 		'x-csrf-token: [csrf]\n'+
-		'If-Match: [ifmatch]\n';
+		((_ifmatch)? 'If-Match: [ifmatch]\n' : '');
 	
 	switch(reqType){
 		case 'POST':
@@ -303,17 +310,21 @@ function getRequestBody(){
       
       value     = value.value;
       
-      if(!propTypes[prop]){ return; }
+      if(!propTypes[prop] || value === undefined || value === ""){ return; }
       
       if(propTypes[prop].indexOf('Edm.Int') === 0){
         value = parseInt(value);
       }
       if(propTypes[prop].indexOf('Edm.Boolean') === 0){
-        value = Boolean(value);
+      	if(value === "true")	value = true;
+      	if(value === "false")	value = false;
       }
-     	if(prop && value && value != 'object'){
-		  	reqBody[prop] = value;
-		  }
+      if(propTypes[prop].indexOf('Edm.DateTime') === 0){
+		value = '/Date('+new Date(value).getTime()+')/';
+      }
+	  if(prop && value && value != 'object'){
+		reqBody[prop] = value;
+	  }
     });
   });
   
